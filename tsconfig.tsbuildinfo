@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/supabaseclient.ts","./src/vite-env.d.ts","./src/components/walletdemo.tsx","./src/components/common/header.tsx","./src/components/common/paywithsolana.tsx"],"version":"5.9.3"}
