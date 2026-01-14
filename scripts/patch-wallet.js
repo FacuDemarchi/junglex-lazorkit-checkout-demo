@@ -39,13 +39,33 @@ filesToPatch.forEach(filePath => {
     }
 
     // --- Patch 2: Conditional Execute flow ---
+    // First, fix any bad patches (ReferenceError: Execute is not defined)
+    const badPatchRegex = /type:\w+\.Execute,/g;
+    const badPatchRegexBare = /type:Execute,/g;
+    
+    if (badPatchRegex.test(content)) {
+        console.log('Fixing bad M.Execute reference in existing patch...');
+        content = content.replace(badPatchRegex, 'type:"execute",');
+        modified = true;
+    }
+    if (badPatchRegexBare.test(content)) {
+        console.log('Fixing bad bare Execute reference in existing patch...');
+        content = content.replace(badPatchRegexBare, 'type:"execute",');
+        modified = true;
+    }
+
     const regexExecute = /\{type:(\w+)\.CreateChunk,args:\{cpiInstructions:(\w+)\.instructions\}\}/g;
     
-    if (regexExecute.test(content)) {
-        console.log('Applying Execute flow optimization...');
-        // Use literal "execute" string to avoid ReferenceError if the enum property is missing
-        content = content.replace(regexExecute, '($2.instructions.length===1?{type:"execute",args:{cpiInstruction:$2.instructions[0]}}:{type:$1.CreateChunk,args:{cpiInstructions:$2.instructions}})');
-        modified = true;
+    // Only apply the main patch if it hasn't been applied yet (avoid nesting loops)
+    if (!content.includes('type:"execute"') && !content.includes('instructions.length===1?')) {
+        if (regexExecute.test(content)) {
+            console.log('Applying Execute flow optimization...');
+            // Use literal "execute" string to avoid ReferenceError if the enum property is missing
+            content = content.replace(regexExecute, '($2.instructions.length===1?{type:"execute",args:{cpiInstruction:$2.instructions[0]}}:{type:$1.CreateChunk,args:{cpiInstructions:$2.instructions}})');
+            modified = true;
+        }
+    } else {
+        console.log('Execute flow optimization already present (skipped to avoid nesting).');
     }
 
     // --- Patch 3: Fix Signature Normalization & Logging ---
