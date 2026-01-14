@@ -196,4 +196,14 @@ filesToPatch.forEach(filePath => {
         fs.writeFileSync(filePath, content);
         console.log(`Successfully patched getPayer in ${path.basename(filePath)}`);
     }
+
+    // --- Patch 9: Filter Undefined Signers ---
+    // Fixes: TypeError: Cannot read properties of undefined (reading 'toString') when payer is undefined
+    const unsafeSignersRegex = /\[\.\.\.l\?\?\[\],t\.payer\]/g;
+    if (unsafeSignersRegex.test(content)) {
+        console.log('Patching signers array to filter undefined values...');
+        content = content.replace(unsafeSignersRegex, '[...l??[],t.payer].filter(s=>s)');
+        fs.writeFileSync(filePath, content);
+        console.log(`Successfully patched signers array in ${path.basename(filePath)}`);
+    }
 });
