@@ -186,4 +186,14 @@ filesToPatch.forEach(filePath => {
         fs.writeFileSync(filePath, content); // Write immediately as this is appended logic
         console.log(`Successfully patched paymasterConfig access in ${path.basename(filePath)}`);
     }
+
+    // --- Patch 8: Safe getPayer (Disable if endpoint undefined) ---
+    // If endpoint is missing, return undefined instead of fetching "undefined"
+    const getPayerRegex = /async getPayer\(\)\{try\{/;
+    if (getPayerRegex.test(content)) {
+        console.log('Patching getPayer to be safe...');
+        content = content.replace(getPayerRegex, 'async getPayer(){if(!this.endpoint||this.endpoint==="undefined")return undefined;try{');
+        fs.writeFileSync(filePath, content);
+        console.log(`Successfully patched getPayer in ${path.basename(filePath)}`);
+    }
 });
