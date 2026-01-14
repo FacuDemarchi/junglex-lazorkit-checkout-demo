@@ -66,6 +66,8 @@ filesToPatch.forEach(filePath => {
         }
     } else {
         console.log('Execute flow optimization already present (skipped to avoid nesting).');
+        if (content.includes('type:"execute"')) console.log('Found type:"execute"');
+        if (content.includes('instructions.length===1?')) console.log('Found instructions.length===1?');
     }
 
     // --- Patch 3: Fix Signature Normalization & Logging ---
@@ -86,27 +88,20 @@ filesToPatch.forEach(filePath => {
         }
     }
 
-    // --- Patch 4: Fix Timestamp in executeTxn (Global BN Fix) ---
-    const timestampPattern = /w\s*=\s*await\s+e\.executeTxn\(\{\s*payer:\s*n/g;
-    const existingPatchPattern = /w\s*=\s*await\s+e\.executeTxn\(\{\s*timestamp:\s*(?:new\s+A\.BN\(o\)|Date\.now\(\)|new\s+window\.LazorKitBN\(o\)),\s*payer:\s*n/g;
-    
-    if (existingPatchPattern.test(content)) {
-        if (!content.includes('window.LazorKitBN(o)')) {
-             console.log('Updating timestamp patch to use window.LazorKitBN...');
-             content = content.replace(existingPatchPattern, 'w = await e.executeTxn({ timestamp: new window.LazorKitBN(o), payer: n');
-             modified = true;
-        }
-    } else if (timestampPattern.test(content)) {
-        console.log('Patching timestamp in executeTxn...');
-        content = content.replace(timestampPattern, 'w = await e.executeTxn({ timestamp: new window.LazorKitBN(o), payer: n');
+    // --- Patch 4: Fix Timestamp in executeTxn (Explicit BN conversion at definition) ---
+    // We patch the definition of executeTxn to ensure timestamp is a BN before validation.
+    // Original: async executeTxn(t,e={}){this.validateExecuteParams(t);
+    const executeTxnDefRegex = /async\s+executeTxn\(t,e=\{\}\)\s*\{\s*this\.validateExecuteParams\(t\);/;
+
+    if (executeTxnDefRegex.test(content)) {
+        console.log('Patching executeTxn definition to enforce BN timestamp...');
+        const replacement = 'async executeTxn(t,e={}){if(t.timestamp&&!(t.timestamp instanceof A.BN)){console.log("[LazorKit Patch] Converting timestamp to BN in executeTxn");t.timestamp=new window.LazorKitBN(t.timestamp);}this.validateExecuteParams(t);';
+        content = content.replace(executeTxnDefRegex, replacement);
         modified = true;
+    } else if (content.includes('Converting timestamp to BN in executeTxn')) {
+        console.log('executeTxn definition already patched.');
     } else {
-         const strictString = 'w=await e.executeTxn({payer:n';
-         if (content.includes(strictString)) {
-             console.log('Patching timestamp in executeTxn (strict)...');
-             content = content.replace(strictString, 'w=await e.executeTxn({timestamp:new window.LazorKitBN(o),payer:n');
-             modified = true;
-         }
+        console.log('Could not find executeTxn definition to patch. Regex might need adjustment.');
     }
 
     // --- Patch 5: Relax BN Validation (Nuclear Fix for instanceof mismatch) ---
