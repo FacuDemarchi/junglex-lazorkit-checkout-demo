@@ -26,16 +26,28 @@ filesToPatch.forEach(filePath => {
     }
 
     // --- Patch 1: Add Execute to SmartWalletAction enum ---
-    if (content.includes('ExecuteChunk="execute_chunk"') && !content.includes('Execute="execute"')) {
-        console.log('Adding Execute to SmartWalletAction enum...');
-        content = content.replace('ExecuteChunk="execute_chunk"', 'ExecuteChunk="execute_chunk",Execute="execute"');
+    // Fix previously introduced global variable leak (ReferenceError: Execute is not defined)
+    const badGlobalExecute = /,Execute="execute"/g;
+    if (badGlobalExecute.test(content)) {
+        console.log('Removing leaking global Execute variable...');
+        content = content.replace(badGlobalExecute, '');
         modified = true;
     }
-    // Fallback for minified property names if different
-    if (content.includes('t.ExecuteChunk="execute_chunk"') && !content.includes('t.Execute="execute"')) {
-        console.log('Adding Execute to SmartWalletAction enum (minified t.)...');
-        content = content.replace('t.ExecuteChunk="execute_chunk"', 't.ExecuteChunk="execute_chunk",t.Execute="execute"');
-        modified = true;
+
+    // Correctly add Execute to the enum using regex to capture the object variable (e.g. t.ExecuteChunk)
+    const enumRegex = /(\w+)\.ExecuteChunk="execute_chunk"/;
+    if (enumRegex.test(content)) {
+         if (!content.includes(`${content.match(enumRegex)[1]}.Execute="execute"`)) {
+             console.log('Adding Execute to SmartWalletAction enum (safe regex)...');
+             content = content.replace(enumRegex, '$1.ExecuteChunk="execute_chunk",$1.Execute="execute"');
+             modified = true;
+         }
+    } else if (content.includes('ExecuteChunk="execute_chunk"') && !content.includes('Execute="execute"')) {
+        // Fallback only if regex fails (unlikely given the minification structure)
+        console.log('Adding Execute to SmartWalletAction enum (fallback)...');
+        // We assume it might be M.ExecuteChunk or similar, but to be safe we should try to find the variable
+        // If we can't, we skip to avoid ReferenceError, relying on the regex above which is safer.
+        console.warn('Could not safely patch ExecuteChunk with regex. Skipping unsafe string replace.');
     }
 
     // --- Patch 2: Conditional Execute flow ---
