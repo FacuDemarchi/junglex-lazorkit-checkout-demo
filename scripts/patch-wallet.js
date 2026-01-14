@@ -171,9 +171,19 @@ filesToPatch.forEach(filePath => {
     }
 
     if (modified) {
-        fs.writeFileSync(filePath, content);
-        console.log(`Successfully patched ${path.basename(filePath)}`);
+         fs.writeFileSync(filePath, content);
+         console.log(`Successfully patched ${path.basename(filePath)}`);
     } else {
         console.log(`No changes needed for ${path.basename(filePath)}`);
+    }
+
+    // --- Patch 7: Safe Paymaster Config Access ---
+    // Allows paymasterConfig to be undefined/null without crashing
+    const paymasterConfigRegex = /paymasterUrl:t\.paymasterConfig\.paymasterUrl/;
+    if (paymasterConfigRegex.test(content)) {
+        console.log('Patching paymasterConfig access to be safe...');
+        content = content.replace(paymasterConfigRegex, 'paymasterUrl:(t.paymasterConfig||{}).paymasterUrl');
+        fs.writeFileSync(filePath, content); // Write immediately as this is appended logic
+        console.log(`Successfully patched paymasterConfig access in ${path.basename(filePath)}`);
     }
 });
