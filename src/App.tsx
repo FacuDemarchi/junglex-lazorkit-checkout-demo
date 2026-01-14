@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { LazorkitProvider } from '@lazorkit/wallet'
 import { WalletDemo } from './components/WalletDemo'
 import { Header } from './components/common/Header'
@@ -8,18 +9,16 @@ const portalUrl = import.meta.env.VITE_LAZORKIT_PORTAL_URL || 'https://portal.la
 // const paymasterApiKey = import.meta.env.VITE_LAZORKIT_PAYMASTER_API_KEY
 
 export default function App() {
-/*
-  const paymasterConfig = useMemo(() => ({ 
-    paymasterUrl, 
-    apiKey: paymasterApiKey 
-  }), [])
-*/
+  // Use a stable object for paymasterConfig to prevent infinite render loops in the SDK
+  // We leave it empty to disable the Paymaster and reduce transaction size
+  // @ts-ignore - We intentionally pass an empty object to disable paymaster, casting to any to bypass TS check
+  const paymasterConfig = useMemo(() => ({} as any), [])
 
   return (
     <LazorkitProvider
       rpcUrl={rpcUrl}
       portalUrl={portalUrl}
-      // paymasterConfig={paymasterConfig} // Disable Paymaster to reduce transaction size
+      paymasterConfig={paymasterConfig}
     >
       <Header title="Junglex + Lazorkit Demo" />
       <div style={{ maxWidth: 640, margin: '24px auto', padding: 16 }}>
