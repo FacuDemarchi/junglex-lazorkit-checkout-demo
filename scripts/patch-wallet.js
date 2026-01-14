@@ -133,6 +133,43 @@ filesToPatch.forEach(filePath => {
         }
     }
 
+    // --- Patch 6: Add 'execute' case to buildAuthorizationMessage ---
+    // Fixes: ValidationError: Unsupported SmartWalletAction: execute
+    const executeCaseRegex = /case "execute":/;
+    if (!executeCaseRegex.test(content)) {
+        console.log('Patching buildAuthorizationMessage to support "execute" action...');
+        
+        // 1. Find the internal function names
+        const buildExecuteMatch = content.match(/(\w+) as buildExecuteMessage/);
+        const buildExecuteName = buildExecuteMatch ? buildExecuteMatch[1] : 'Ot';
+        
+        const buildCreateChunkMatch = content.match(/(\w+) as buildCreateChunkMessage/);
+        const buildCreateChunkName = buildCreateChunkMatch ? buildCreateChunkMatch[1] : 'zt';
+        
+        console.log(`Detected internal names: buildExecuteMessage=${buildExecuteName}, buildCreateChunkMessage=${buildCreateChunkName}`);
+        
+        // 2. Find the insertion point (end of CreateChunk case)
+        // Pattern: e=zt(n,(await this.getWalletStateData(n)).lastNonce,i,d,o,[...l??[],t.payer]);break}default:
+        // We capture the whole CreateChunk ending to append our case after it.
+        const insertionPattern = new RegExp(`(e=${buildCreateChunkName}\\(n,\\(await this\\.getWalletStateData\\(n\\)\\)\\.lastNonce,i,d,o,\\[\\.\\.\\.l\\?\\?\\[\\],t\\.payer\\]\\);break\\})(default:)`);
+        
+        if (insertionPattern.test(content)) {
+            console.log('Found insertion point for execute case.');
+            const newCase = `case "execute":{const{policyInstruction:s,cpiInstruction:o,cpiSigners:l}=a.args,c=await this.getWalletStateData(t.smartWallet),d=await this.policyResolver.resolveForExecute({provided:s,smartWallet:t.smartWallet,credentialHash:t.credentialHash,passkeyPublicKey:r,walletStateData:c});e=${buildExecuteName}(n,(await this.getWalletStateData(n)).lastNonce,i,d,o,[...l??[],t.payer]);break}`;
+            content = content.replace(insertionPattern, `$1${newCase}$2`);
+            modified = true;
+        } else {
+            console.warn('Could not find insertion point for execute case. Code structure might have changed.');
+            // Debug hint: print what we found around 'buildCreateChunkName'
+            const idx = content.indexOf(`${buildCreateChunkName}(n,`);
+            if (idx !== -1) {
+                console.log('Context around call:', content.substring(idx, idx + 200));
+            }
+        }
+    } else {
+        console.log('buildAuthorizationMessage already supports "execute".');
+    }
+
     if (modified) {
         fs.writeFileSync(filePath, content);
         console.log(`Successfully patched ${path.basename(filePath)}`);
