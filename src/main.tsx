@@ -1,6 +1,7 @@
 import { StrictMode, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
+import './webauthn-polyfill'
 
 function BufferPolyfill() {
   useEffect(() => {

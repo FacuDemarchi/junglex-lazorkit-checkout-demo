@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview --https",
+    "preview": "vite preview",
+    "postinstall": "node scripts/patch-wallet.js",
     "test": "echo \"No hay tests por ahora\" && exit 0"
   },
   "keywords": [],
@@ -27,6 +28,7 @@
     "@vitejs/plugin-react": "^5.1.2",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
+    "vite-plugin-mkcert": "^1.17.9",
     "vite-plugin-node-polyfills": "^0.24.0"
   }
 }

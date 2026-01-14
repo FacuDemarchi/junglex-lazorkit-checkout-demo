@@ -1,20 +1,20 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import basicSsl from '@vitejs/plugin-basic-ssl'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
+import mkcert from 'vite-plugin-mkcert'
 
 export default defineConfig({
   plugins: [
-    react(), 
-    basicSsl(),
-    nodePolyfills({
+    react(),
+    mkcert({ force: true }),
+    (nodePolyfills({
       globals: {
         Buffer: true,
         global: true,
         process: true,
       },
       protocolImports: true,
-    })
+    }) as unknown as import('vite').PluginOption)
   ],
   server: {
     port: 5173

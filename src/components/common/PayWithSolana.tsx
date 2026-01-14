@@ -1,10 +1,13 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useWallet } from '@lazorkit/wallet';
-import { SystemProgram, PublicKey, Transaction, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { SystemProgram, PublicKey, LAMPORTS_PER_SOL, Connection } from '@solana/web3.js';
 import { createTransferInstruction, getAssociatedTokenAddress, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 
 // USDC Devnet Mint
 const USDC_MINT = new PublicKey('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU');
+
+// Address Lookup Table for optimization (System, Sysvars, Token Programs)
+const ALT_ADDRESS = '4CM61MFhHssmGQny9df26DdyVGgnrpMPZn1cTU7zYdi1';
 
 interface PayWithSolanaProps {
   label: string;
@@ -18,21 +21,61 @@ export function PayWithSolana({ label, amount, currency, recipient }: PayWithSol
   const [status, setStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
   const [txSig, setTxSig] = useState<string | null>(null);
 
+  const rpcUrl = import.meta.env.VITE_LAZORKIT_RPC_URL || 'https://api.devnet.solana.com';
+  const connection = useMemo(() => new Connection(rpcUrl, 'confirmed'), [rpcUrl]);
+
+  const ensureSolBalance = async (pubkey: PublicKey, requiredLamports: number) => {
+    const feeBuffer = 50_000;
+    let current = await connection.getBalance(pubkey, 'confirmed');
+    const target = requiredLamports + feeBuffer;
+    let attempts = 0;
+    while (current < target && attempts < 3) {
+      const toAirdrop = Math.min(target - current, 1_000_000_000); // máx 1 SOL
+      const sig = await connection.requestAirdrop(pubkey, toAirdrop);
+      await connection.confirmTransaction(sig, 'finalized');
+      current = await connection.getBalance(pubkey, 'confirmed');
+      attempts++;
+    }
+    if (current < target) {
+      throw new Error('No se pudo fondear la smart wallet en Devnet');
+    }
+  };
+
   const handlePay = async () => {
+    console.log('Botón de pago presionado. Wallet:', smartWalletPubkey?.toString());
     if (!smartWalletPubkey) return;
     setStatus('processing');
     setTxSig(null);
 
     try {
+      console.log('Iniciando proceso de pago...');
+      
+      // Load ALT for optimization
+      console.log('Loading ALT:', ALT_ADDRESS);
+      const altPubkey = new PublicKey(ALT_ADDRESS);
+      let altAccount;
+      try {
+        const altResponse = await connection.getAddressLookupTable(altPubkey);
+        altAccount = altResponse.value;
+        console.log('ALT Loaded:', altAccount ? 'Found' : 'Not Found');
+      } catch (e) {
+        console.warn('Failed to load ALT:', e);
+      }
+
       const recipientPubkey = new PublicKey(recipient);
-      const transaction = new Transaction();
+      const instructions: any[] = [];
 
       if (currency === 'SOL') {
-        transaction.add(
+        const lamports = Math.floor(amount * LAMPORTS_PER_SOL);
+        console.log(`Verificando balance de SOL para enviar ${lamports} lamports...`);
+        await ensureSolBalance(smartWalletPubkey, lamports);
+        console.log('Balance verificado/airdrop completado.');
+        
+        instructions.push(
           SystemProgram.transfer({
             fromPubkey: smartWalletPubkey,
             toPubkey: recipientPubkey,
-            lamports: Math.floor(amount * LAMPORTS_PER_SOL),
+            lamports,
           })
         );
       } else if (currency === 'USDC') {
@@ -46,7 +89,7 @@ export function PayWithSolana({ label, amount, currency, recipient }: PayWithSol
         // USDC tiene 6 decimales
         const amountInBaseUnits = Math.floor(amount * 1_000_000);
 
-        transaction.add(
+        instructions.push(
           createTransferInstruction(
             senderAta,
             recipientAta,
@@ -58,7 +101,17 @@ export function PayWithSolana({ label, amount, currency, recipient }: PayWithSol
         );
       }
 
-      const signature = await signAndSendTransaction(transaction);
+      // 2. Sign and Send
+      // Match official documentation pattern
+      const signature = await signAndSendTransaction({
+        instructions,
+        transactionOptions: {
+          // feeToken: 'USDC' // Optional: Pay gas in USDC
+          addressLookupTableAccounts: altAccount ? [altAccount] : [],
+        }
+      });
+
+      console.log('Transaction confirmed:', signature);
       setTxSig(signature);
       setStatus('success');
     } catch (error) {
