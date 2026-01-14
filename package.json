@@ -4,7 +4,7 @@
   "description": "Demo Vite + Lazorkit (passkeys, smart wallet, gasless) en Solana Devnet",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "node scripts/patch-wallet.js && tsc -b && vite build",
     "preview": "vite preview",
     "postinstall": "node scripts/patch-wallet.js",
     "test": "echo \"No hay tests por ahora\" && exit 0"

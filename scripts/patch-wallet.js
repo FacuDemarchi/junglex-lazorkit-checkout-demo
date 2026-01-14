@@ -43,7 +43,8 @@ filesToPatch.forEach(filePath => {
     
     if (regexExecute.test(content)) {
         console.log('Applying Execute flow optimization...');
-        content = content.replace(regexExecute, '($2.instructions.length===1?{type:$1.Execute,args:{cpiInstruction:$2.instructions[0]}}:{type:$1.CreateChunk,args:{cpiInstructions:$2.instructions}})');
+        // Use literal "execute" string to avoid ReferenceError if the enum property is missing
+        content = content.replace(regexExecute, '($2.instructions.length===1?{type:"execute",args:{cpiInstruction:$2.instructions[0]}}:{type:$1.CreateChunk,args:{cpiInstructions:$2.instructions}})');
         modified = true;
     }
 
